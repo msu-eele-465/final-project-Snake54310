@@ -8,7 +8,7 @@
 
 I will create a text editor, which will be visible on the LCD display. The user will be able to create files with specific file names, edit files or file names, and approximately control file sizes. The files will be stored on a subservient memory device, and only exist on the MSP430 during editing. The files will be sendable to and readable (MSP430 can recieve and store formatted files) from a PC terminal. 
 
-The inputs include the membrane keypad, the PC terminal (uart) and two potentiometers. 
+The inputs include the membrane keypad, the PC terminal (uart) and two rotary encoders. 
 The outputs include the LCD display, the RGB led, an LED indicating reads and writes from the EEPROM, and the PC terminal (uart)
 
 ## Hardware Setup
@@ -40,8 +40,8 @@ Main controller (initial/home states):
 
 Main controller (Editing Mode): 
  - Selected is loaded onto MSP430 from EEPROM
- - one potentiometer is used to scroll through document
- - a sepatate potentiometer is used to iterate through charater numbers
+ - one rotary encoder is used to scroll through document
+ - a sepatate rotary encoder is used to iterate through charater numbers
  User may also run through characters in the following way:
  A. beginning of capital letters
  B. beginning of lowercase letters
@@ -57,8 +57,8 @@ Main controller (Editing Mode):
   
  Main controller (Viewing Mode): 
 - Selected is loaded onto MSP430 from EEPROM
- - one potentiometer is used to scroll through document characters
- - one potentiometer is used to scroll through document lines
+ - one rotary encoder is used to scroll through document characters
+ - one rotary encoder is used to scroll through document lines
  - user may use * key to exit document
  - current location in file is carefully tracked
  - current position on LCD is carefully tracked
@@ -119,7 +119,7 @@ but the MSP430 will decide whether it is prepared to receive comminication at an
 **The inputs to the system will be:**
 1.  Membrane Keypad
 2.  My laptop terminal
-3.  2x potentiometer
+3.  2x rotary encoder
 4.  Either SPI or I2C EEPROM (25LC256 or 24LC256) (maybe not considered an input, but I still have 3)
 
 **The outputs of the system will be:**
@@ -135,7 +135,7 @@ I will create a text editor. The LCD will display file names, file contents, and
 
 **The new hardware or software modules are:**
 1. Short description of new hardware or software module
-2. 2x potentiometer
+2. 2x rotary encoder
 
 
 The Master will be responsible for:
@@ -157,5 +157,5 @@ The Slave(s) will be responsible for:
 ### Argument for Desired Prescaler
 
 I believe this deserves a 100% prescalar due to the explicit goal chosen, and the utility of that goal. Additionally, I am going to meet the novelty-related 
-hardware and software requirements with the potentiometers and the EEPROM interface. I am also surpassing or meeting the I/O quantity requirements. 
+hardware and software requirements with the rotary encoders and the EEPROM interface. I am also surpassing or meeting the I/O quantity requirements. 
 
