@@ -1,0 +1,11 @@
+one rotation counter-clockwise: 
+ - starts with voltage at 0
+ - spikes to 230 mV
+ - spikes to 3.3 V
+ - returns to 0V
+
+one rotation clockwise: 
+ - starts with voltage at 0
+ - spikes to 3.3 mV
+ - drops to 230 mV
+ - returns to 0V
