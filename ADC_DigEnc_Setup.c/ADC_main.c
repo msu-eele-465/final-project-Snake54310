@@ -6,17 +6,17 @@
 
 volatile unsigned int ADC_Value = 0;
 volatile float voltage;
-volatile int counter8;
-volatile int counter9;
-/*volatile bool confirm8H = true;
-volatile bool confirm9H = true;
-volatile bool confirm8L = true;
-volatile bool confirm9L = true;*/
-volatile bool listen8 = true;
-volatile bool listen9 = true;
+static int counter8;
+static int counter9;
+volatile bool CW8 = false;
+volatile bool CCW8 = false;
+volatile bool CW9 = false;
+volatile bool CCW9 = false;
+volatile bool listen8 = false;
+volatile bool listen9 = false;
 volatile bool selected_A8 = true;
 volatile bool selected_A9 = false;
-volatile bool complete = true;
+volatile bool complete = false;
 
 int main(void)
 {
@@ -48,6 +48,7 @@ int main(void)
         ADCCTL0 |= ADCENC | ADCSC;      // Enable and Start conversion
         //while((ADCIFG & ADCIFG0) == 0){}
         while(!complete){}
+        ADCCTL0 &= ~(ADCENC | ADCSC);
         if(selected_A8) { // toggle between A8 and A9 for reading
             PM5CTL0 |= LOCKLPM5; 
             ADCMCTL0 &= ~ADCINCH_8;      //clear ADC Input Channel = A8)
@@ -64,7 +65,22 @@ int main(void)
             selected_A8 = true;
             selected_A9 = false;
         }
-
+        if(CW8) {
+            counter8 += 1;
+            CW8 = false;
+        }
+        if(CCW8) {
+            counter8 += -1;
+            CCW8 = false;
+        }
+        if(CW9) {
+            counter9 += 1;
+            CW9 = false;
+        }
+        if(CCW9) {
+            counter9 += -1;
+            CCW9 = false;
+        }
     }
 }
 
@@ -73,19 +89,17 @@ int main(void)
 __interrupt void ADC_ISR(void) {
     __bic_SR_register_on_exit(LPM0_bits);   // wake CPU
     ADC_Value = ADCMEM0;
-     ADCCTL0 &= ~(ADCENC | ADCSC);
+    ADCCTL0 &= ~(ADCENC | ADCSC);
     voltage = ADC_Value * 0.0032227;       // read ADC result
     __disable_interrupt();
     if(selected_A8 && listen8){
         if (voltage >= 3.1){  
             listen8 = false;
-            counter8 = (counter8 + 1);
-            //confirm8H = true;
+            CW8 = true;
                 }
         else if (voltage > 0.2 && voltage < 3.1) {  
             listen8 = false;
-            counter8 = (counter8 - 1);
-            //confirm8L = true;
+            CCW8 = true;
                     }
         else if (voltage < 0.10) { //  
             listen8 = true;
@@ -94,49 +108,9 @@ __interrupt void ADC_ISR(void) {
 
         }
     }
-    /*else if(selected_A8 && confirm8H){
-     if (voltage >= 3.1){  
-            listen8 = false;
-            confirm8H = false;
-                }
-        else if (voltage > 0.2 && voltage < 3.1) {  
-            counter8 = (counter8 + 1);
-            listen8 = false;
-            confirm8H = false;
-                    }
-        else if (voltage < 0.10) { //  
-            listen8 = true;
-            confirm8H = false;
-                    }
-        else {
-            confirm8H = false;
-            listen8 = false;
-        }
-    }
-    else if(selected_A8 && confirm8L){
-     if (voltage >= 3.1){  
-            counter8 = (counter8 - 1);
-            listen8 = false;
-            confirm8L = false;
-                }
-        else if (voltage > 0.2 && voltage < 3.1) {  
-            listen8 = false;
-            confirm8L = false;
-                    }
-        else if (voltage < 0.10) { //  
-            listen8 = true;
-            confirm8L = false;
-                    }
-        else {
-            confirm8L = false;
-            listen8 = false;
-        }
-    } */
     else if (selected_A8) {
         if (voltage < 0.10) {
             listen8 = true;
-            //confirm8H = false;
-            //confirm8L = false;
         }
     }
     else {} 
@@ -144,13 +118,11 @@ __interrupt void ADC_ISR(void) {
     if(selected_A9 && listen9){
         if (voltage >= 3.1){  
             listen9 = false;
-            counter9 = (counter9 + 1);
-            //confirm9H = true;
+             CW9 = true;
                 }
         else if (voltage > 0.2 && voltage < 3.1) {  
             listen9 = false;
-            counter9 = (counter9 - 1);
-            //confirm9L = true;
+             CCW9 = true;
                     }
         else if (voltage < 0.10) { //  
             listen9 = true;
@@ -159,49 +131,9 @@ __interrupt void ADC_ISR(void) {
 
         }
     }
-    /*else if(selected_A9 && confirm9H){
-     if (voltage >= 3.1){  
-            listen9 = false;
-            confirm9H = false;
-                }
-        else if (voltage > 0.2 && voltage < 3.1) {  
-            counter9 = (counter9 + 1);
-            listen9 = false;
-            confirm9H = false;
-                    }
-        else if (voltage < 0.10) { //  
-            listen9 = true;
-            confirm9H = false;
-                    }
-        else {
-            confirm9H = false;
-            listen9 = false;
-        }
-    }
-    else if(selected_A9 && confirm9L){
-     if (voltage >= 3.1){  
-            counter9 = (counter9 - 1);
-            listen9 = false;
-            confirm9L = false;
-                }
-        else if (voltage > 0.2 && voltage < 3.1) {  
-            listen9 = false;
-            confirm9L = false;
-                    }
-        else if (voltage < 0.10) { //  
-            listen9 = true;
-            confirm9L = false;
-                    }
-        else {
-            confirm9L = false;
-            listen9 = false;
-        }
-    } */
     else if (selected_A9) {
         if (voltage < 0.10) {
             listen9 = true;
-            //confirm9H = false;
-            //confirm9L = false;
         }
     }
     else {} 

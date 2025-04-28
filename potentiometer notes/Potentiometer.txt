@@ -9,3 +9,6 @@ one rotation clockwise:
  - spikes to 3.3 mV
  - drops to 230 mV
  - returns to 0V
+
+
+https://www.bourns.com/docs/Product-Datasheets/PEC12R.pdf

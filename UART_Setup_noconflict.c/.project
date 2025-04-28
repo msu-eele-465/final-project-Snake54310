@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>UART_Setup.c</name>
+	<name>UART_Setup_noconflict.c</name>
 	<comment></comment>
 	<projects>
 	</projects>

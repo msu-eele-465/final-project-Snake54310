@@ -2,11 +2,13 @@
 #include <msp430.h>
 #include <stdbool.h>
 #include <string.h>
+#include <stdint.h>
 #include "controlLCD.h"
 #include "keypad.h"
 #include "RGB.h"
 #include "msp430fr2355.h"
 #include "shared.h"
+#include "initStuff.h"
 
 #define RED_LED   BIT4 
 #define GREEN_LED BIT5 
@@ -50,6 +52,44 @@ volatile system_states state = LOCKED;
 
 //volatile bool is_matching = false;
 //volatile bool update_time = false;
+// variables associated with below methods:
+// file storage and navigation
+volatile char fileNames[32][16] = {}; // 32 files, 16 characters each
+volatile uint16_t fileMemoryLocations[32][16] = {}; // 32 files, up to 16 memory locations each
+volatile uint16_t nextFreeMemory = 0; // this is the next free memory location to which we allocate memory. Starts at 0.
+volatile uint8_t currentFileIndex = 0;
+volatile char currentFile[1024] = {};
+
+
+void createFile() {
+
+}
+void editFile() {
+    
+}
+void viewFile() {
+    
+}
+void allocateFileMemory() {
+
+}
+void editFileName() {
+
+}
+void deleteFile() {
+    
+}
+void sendTerminal() {
+    
+}
+void recieveTerminal() {
+    
+}
+void changeEditChar() {
+    
+}
+
+
 
 int main(void)
 {
@@ -86,9 +126,13 @@ int main(void)
 
     set_timer(); 
 
-    config_ADC();
+    initUART();
+    initSPI();
+    initADC();
 
     init_LCD_I2C(); // what it says, but this also likely works for LCD controller
+
+
 
     __enable_interrupt(); 
     int unlock = 0;
@@ -105,156 +149,120 @@ int main(void)
         state = UNLOCKED;
         update_color(state);
         char lastInput = 'X';
-        while (lastInput != 'A' && lastInput != 'B' && lastInput != 'D' && lastInput != 'C' && !(lastInput < ':')) {
+        while ((lastInput != 'D' && !(lastInput < ':')) || (lastInput == '0')) {
             lastInput = readInput(); // stays here until user chooses a pattern, or chooses to lock the system
-            //send_Latest_Input(lastInput);
         }
         int rows;
-        long int phaseTime = 12500; // 1 second
-        send_LED_Phase_Delay(phaseTime);
-        //send_Pattern_Speed(phaseTime); 
-        // code to set initial temp-sense window
-        time_operating = 0;
         bool input_change = true;
-        send_time_op = true;
         while (lastInput != 'D') {
             Data_Cnt = 0;     
-            if (lastInput == 'A' && input_change) {
+            if (lastInput == '1' && input_change) { // create file
                 input_change = false;
-                is_matching = false;
-                send_Pattern_Name(0);
-                time_operating = 0;
-                send_LED_Pattern(1);
-                // code to set peltier to heat
-                P5OUT &= ~BIT2;
-                P5OUT |= BIT1;
+                createFile();
                 rows = P3IN; // constantly listen for an input
                 rows &= 0b11110000; // clear any values on lower 4 bits
                 if (rows != 0b00000000) {
                     lastInput = readInput();
-                    //send_Latest_Input(lastInput);
                     input_change = true;
                 }
             }
-            else if (lastInput == 'B'  && input_change) {
+            else if (lastInput == '2'  && input_change) { // Edit file
                 input_change = false;
-                is_matching = false;
-                send_Pattern_Name(1);
-                time_operating = 0;
-                send_LED_Pattern(2);
-                // code to set peltier to cool
-                P5OUT &= ~BIT1;
-                P5OUT |= BIT2;
+                editFile();
                 rows = P3IN; // constantly listen for an input
                 rows &= 0b11110000; // clear any values on lower 4 bits
                 if (rows != 0b00000000) {
                     lastInput = readInput();
-                    //send_Latest_Input(lastInput);
                     input_change = true;
                 }
             }
-            else if (lastInput == 'C'  && input_change) {
+            else if (lastInput == '3'  && input_change) { // view file
                 input_change = false;
-                send_Pattern_Name(3);
-                time_operating = 0;
-                send_LED_Pattern(0);
-                // code to set peltier to match
-                is_matching = true;
+                viewFile();
                 rows = P3IN; // constantly listen for an input
                 rows &= 0b11110000; // clear any values on lower 4 bits
                 if (rows != 0b00000000) {
                     lastInput = readInput();
-                    //send_Latest_Input(lastInput);
                     input_change = true;
                 }
             }
-            else if (input_change && lastInput != '*' && lastInput < ':') { 
+            else if (lastInput == '4'  && input_change) { // allocate memory to file
                 input_change = false;
-                next_window = lastInput;
-                // if valid input, record the number
+                allocateFileMemory();
                 rows = P3IN; // constantly listen for an input
                 rows &= 0b11110000; // clear any values on lower 4 bits
                 if (rows != 0b00000000) {
                     lastInput = readInput();
-                    send_Latest_Input(lastInput);
                     input_change = true;
                 }
             }
-            else if (input_change & lastInput == '*') {
-                send_Latest_Input(next_window); // enter key pressed, process new window
+            else if (lastInput == '5'  && input_change) { // edit file name
                 input_change = false;
-                confirm_window = next_window;
-                // code to update to new window on ADC scanner
+                editFileName();
                 rows = P3IN; // constantly listen for an input
                 rows &= 0b11110000; // clear any values on lower 4 bits
                 if (rows != 0b00000000) {
                     lastInput = readInput();
-                    //send_Latest_Input(lastInput);
+                     
                     input_change = true;
                 }
             }
-            else if (input_change) { // clear any invalid input
+            else if (lastInput == '6'  && input_change) { // delete file
                 input_change = false;
+                deleteFile();
                 rows = P3IN; // constantly listen for an input
                 rows &= 0b11110000; // clear any values on lower 4 bits
                 if (rows != 0b00000000) {
                     lastInput = readInput();
-                    //send_Latest_Input(lastInput);
+                     
                     input_change = true;
                 }
             }
-            else if (record_next_temp) {
-                send_next_temp = true;
-                record_next_temp = false;
-                get_temp(confirm_window - '0');
-                //get_pelt_temp(confirm_window - '0');
-                pelt_temp = 20.2;
-                // code to read temperature
-                // cur_temp variable gets set to read value
-
+            else if (lastInput == '7'  && input_change) { // save files to terminal
+                input_change = false;
+                sendTerminal();
+                rows = P3IN; // constantly listen for an input
+                rows &= 0b11110000; // clear any values on lower 4 bits
+                if (rows != 0b00000000) {
+                    lastInput = readInput();
+                     
+                    input_change = true;
+                }
             }
-            else if (send_next_temp) {
-                send_next_temp = false;
-                send_temp = cur_temp/1; // say temp is 15.3455 degrees, it becomes 1534.55, then 153
-                // then, it is interpreted as 15.3 by LCD code
-                A_send_Temp_LCD(send_temp%256); // will work for celcius, as 15-40.6 is an acceptable range. However,
-                send_temp_dec = ((cur_temp - (send_temp%256))*10)/1;
-                send_Temp_LCD_Dec(send_temp_dec); 
-
-                send_temp = pelt_temp/1;
-                send_temp_dec = ((pelt_temp - (send_temp%256))*10)/1;
-                P_send_Temp_LCD(send_temp%256);
-                send_Temp_LCD_Dec(send_temp_dec); 
+            else if (lastInput == '8'  && input_change) { // read files from terminal, pipeline them to memory
+                input_change = false;
+                recieveTerminal();
+                rows = P3IN; // constantly listen for an input
+                rows &= 0b11110000; // clear any values on lower 4 bits
+                if (rows != 0b00000000) {
+                    lastInput = readInput();
+                     
+                    input_change = true;
+                }
+            }
+            else if (lastInput == '9'  && input_change) { // change default editing character
+                input_change = false;
+                changeEditChar();
+                rows = P3IN; // constantly listen for an input
+                rows &= 0b11110000; // clear any values on lower 4 bits
+                if (rows != 0b00000000) {
+                    lastInput = readInput();
+                     
+                    input_change = true;
+                }
             }
             else {
                 rows = P3IN; // constantly listen for an input
                 rows &= 0b11110000; // clear any values on lower 4 bits
                 if (rows != 0b00000000) {
                     lastInput = readInput();
-                    //send_Latest_Input(lastInput);
+                     
                     input_change = true;
                 }
             }
-            if (is_matching) {
-                if (((cur_temp*10)/1) > ((pelt_temp*10)/1)) {
-                    P5OUT &= ~BIT2;
-                    P5OUT |= BIT1;
-                }
-                else if (((cur_temp*10)/1) < ((pelt_temp*10)/1)) {
-                    P5OUT &= ~BIT1;
-                    P5OUT |= BIT2;
-                }
-            }
         }
-        send_next_temp = false;
-        is_matching = false;
-        send_time_op = false;
-        time_operating = 0;
-        next_window = '3';
-        P5OUT &= ~(BIT1 | BIT2); // turn peltier off
-        send_LED_Pattern(8); // turn off LED bar
-        send_Blinking_toggle(0); // totally clear LCD
-        send_LED_Timer_Pause(); // disable LCD-pattern-trigger timer interrupt here (system returns to locked state)
+        enterState(0); // totally clear LCD
+        //send_LED_Timer_Pause(); // disable LCD-pattern-trigger timer interrupt here (system returns to locked state)
     }
 }
 
@@ -319,7 +327,7 @@ __interrupt void ADC_ISR(void){
 
 #pragma vector = TIMER2_B0_VECTOR               //time B0 ISR
 __interrupt void TIMERB2_ISR(void) {
-    record_next_temp = true;                              //toggles P1.0 LED
+    /* record_next_temp = true;                              //toggles P1.0 LED
     if (update_time && send_time_op) {
         time_operating += 1;
         Send_Time_Operating(time_operating % 256);
@@ -327,6 +335,6 @@ __interrupt void TIMERB2_ISR(void) {
     }
     else {
         update_time = true;
-    }
+    } */
     TB2CCTL0 &= ~CCIFG;
 }

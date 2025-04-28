@@ -9,8 +9,6 @@
 
 // P1.2 is data pin (I2C), P1.3 is clock
 
-volatile uint8_t CursorState = 0; // tracks cursor current state
-
 volatile uint8_t index = 0;
 volatile uint8_t dataRead[2] = {0, 0};
 volatile uint8_t dataRead2[2] = {0, 0};
@@ -54,11 +52,10 @@ int main(void)
 
     while(1)
     {   
-        if (dataRdy == 1 || dataRdy2 == 1) { // varint: '1' writes pre-determined message to top, 
-        // 3 writes a file name,
+        if (dataRdy == 1 || dataRdy2 == 1) { // varint: '2' writes pre-determined message to bottom, 
+        // 1 enters state,
         // 4 changes cursor location, 
         // 5 writes a character,
-        // 6 clears display and writes temporary notification
         // make sure to use cursor states to enable/disable cursor when appropriate.
             unsigned int varint;
             unsigned int dataint;
@@ -72,99 +69,47 @@ int main(void)
                 dataint = dataRead2[1];
                 dataRdy2 = 0;
             }
-            if(varint == 1) {
-            goToDDRLCD(0x40); // go to 3rd to last character of second row
-            writeChar('0' + dataint); // write our window size
+            if(varint == 1) { // choose system state (mostly just controls cursor)
+                // 0 clears LCD and turns off cursor (for notification or reset), 1 turns on cursor and as 
+                // blinking (editing), 2 turns cursor on as non-blinking (viewing)
+                switch (dataint) {
+                    case 0:
+                        clearLCD();
+                        CursorState = 0;
+                        goToDDRLCD(0x00);
+                        break;
+                    case 1: 
+                        clearLCD();
+                        sendCommand(0x0C | 0x00000011); 
+                    case 2: 
+                        clearLCD();
+                        sendCommand(0x0C | 0x00000010); 
+                        break;
+                    default: 
+                        break;
             }
             else if (varint == 2) { // dataint is pattern name integer
-                goToDDRLCD(0x00); // go to first character of first row
-                writeMessage("                ");
-                goToDDRLCD(0x00);
+                clearLCD();
+                CursorState = 0;
+                goToDDRLCD(0x40);
                 if (dataint == 0) {
-                    writeMessage("heat");
+                    writeMessage("File Created");
                 }
                 else if (dataint == 1) {
-                    writeMessage("cool");
+                    writeMessage("File Saved");
                 }
                 else if (dataint == 2) {
-                    writeMessage("off");
+                    writeMessage("File Updated");
                 }
                 else if (dataint == 3) {
-                    writeMessage("match");
-                }
-                /*else if (dataint == 4) {
-                    writeMessage("down counter");
-                }
-                else if (dataint == 5) {
-                    writeMessage("rotate 1 left");
-                }
-                else if (dataint == 6) {
-                    writeMessage("rotate 7 right");
-                }
-                else if (dataint == 7) {
-                    writeMessage("fill left");
-                }*/
-                /*else if (dataint == 4) {
-                    writeMessage("set");
-                }*/
-                /*else if (dataint == 9) {
-                    writeMessage("Set Pattern");
-                }*/
-            }
-            else if (varint == 3) { // dataint is blinking toggle state
-                // if 0, turn off LCD
-                // if 1, toggle cursor blinking
-                // if 2, toggle cursor
-
-                if (dataint == 0) {
-                    clearLCD();
-                    CursorState = 0;
-                }
-                else if (dataint == 1) { // C keeps display on
-                    CursorState ^= 0b00000001;
-                    sendCommand(0x0C | CursorState); 
-                }
-                else {
-                    CursorState ^= 0b00000010;
-                    sendCommand(0x0C | CursorState); 
+                    writeMessage("Name Updated");
                 }
             }
-            else if (varint == 4) { // dataint is pattern speed
-                goToDDRLCD(0x08); // go to first character of first row
-                writeMessage("A:");
-                unsigned char tens = (dataint/10) + '0';
-                int ones_int = (dataint%10);
-                unsigned char ones = ones_int % 10 + '0'; 
-                writeChar(tens);
-                writeChar(ones);
+            else if (varint == 4) { // send position
+                goToDDRLCD(dataint);
             }
-            else if (varint == 5) {
-                goToDDRLCD(0x48); // go to first character of first row
-                writeMessage("P:");
-                unsigned char tens = (dataint/10) + '0'; 
-                int ones_int = (dataint%10);
-                unsigned char ones = ones_int % 10 + '0'; 
-                writeChar(tens);
-                writeChar(ones);
-            }
-            else if (varint == 6) {
-                writeChar('.');
-                unsigned char dec = (dataint % 10) + '0';
-                writeChar(dec);
-                writeChar(11011111);
-                writeChar('C');
-            }
-            else if (varint == 7) { /// write time
-                goToDDRLCD(0x42);
-                unsigned char hunds = (dataint/100) + '0';
-                unsigned char tens = (dataint/10)%10 + '0';
-                unsigned char ones = (dataint/1)%10 + '0';
-                writeChar(hunds);
-                writeChar(tens);
-                writeChar(ones);
-                writeChar('s');
-                writeChar(' ');
-                writeChar(' ');
+            else if (varint == 5) { // send character
+                writeChar(dataint);
             }
             else {
                 // do something or nothing in case of invalid send
@@ -172,6 +117,7 @@ int main(void)
             TB0CCTL0 |= CCIE;
         }
     }
+}
 }
 
 #pragma vector = EUSCI_B0_VECTOR

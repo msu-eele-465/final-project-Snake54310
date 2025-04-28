@@ -8,4 +8,4 @@ char read(void);
 int passkey(void);
 int waitForUnlock(void);
 
-#endif // RGB_H
+#endif // KEYPAD_H

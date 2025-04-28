@@ -45,6 +45,15 @@
                 "name": "ADC_DigEnc_Setup.c",
                 "resourceId": "/ADC_DigEnc_Setup.c"
             }
+        },
+        {
+            "name": "UART_Setup.c",
+            "type": "ccs-debug",
+            "request": "launch",
+            "projectInfo": {
+                "name": "UART_Setup.c",
+                "resourceId": "/UART_Setup.c"
+            }
         }
     ]
 }

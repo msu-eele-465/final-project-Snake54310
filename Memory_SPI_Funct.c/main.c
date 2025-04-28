@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <string.h>
 char write_en = 0b00000110; // 6
+char write_status_register = 0b00000001; // 1
 char packetAR[] = {0b00000011, 0, 0};
 char packetAW[] = {0b00000010, 0, 0};
 char packetD[] = {'H', 'E', 'L', 'L', 'O', ' ', 'W', 'O', 'R', 'L', 'D'};
@@ -71,6 +72,23 @@ int main(void)
     {
 
         int i;
+        __delay_cycles(50000);             // Delay for 100000*(1/MCLK)=0.05s
+        position = 0;
+        to_send = 1;
+        while (UCB1STATW & UCBUSY);
+        Data_Sel[0] = write_en;
+        UCB1TXBUF = Data_Sel[0];
+        __delay_cycles(50000);   
+
+        position = 0;
+        to_send = 2;
+        while (UCB1STATW & UCBUSY);
+        Data_Sel[0] = write_status_register;
+        Data_Sel[1] = 0x00000011; // BIT3 and Bit2 being 0 means no protected data,
+        // Bit0 being 1 enables write protect (is read only, dependent upon actual pin), 
+        // and bit1 being 1 does not disable writing (dependent upon whether something is already happening, read only)
+        // Bit7 is the write enabele latch, but I think that gets reset after then instruction anyways
+        UCB1TXBUF = Data_Sel[0];
 
         __delay_cycles(50000);             // Delay for 100000*(1/MCLK)=0.05s
         position = 0;
@@ -100,16 +118,24 @@ int main(void)
         UCB1TXBUF = Data_Sel[position];
         __delay_cycles(5000);
         */
-        position = 0;
          UCB1IFG &= ~UCRXIFG;
         UCB1IE |= UCRXIE; // enable this interrupt when you want to read.
         UCB1IE &= ~UCTXIE; // we want read interrupt, not write
+        position = 0;
+        to_send = 2; // read from status register
+        Data_Sel[0] = 0b000000101;
+        Data_Sel[1] = 0xFF;
+        //while (UCB1STATW & UCBUSY);
+        UCB1TXBUF = Data_Sel[position];
+        __delay_cycles(50000);
+        
+        position = 0;
         to_send = sizeof(packetAW) + 11;
         for (i = 0; i < to_send - 11; i++) {
             Data_Sel[i] = packetAR[i];
         }
         for (; i < to_send; i++) { //i = (to_send - 11)
-            Data_Sel[i] = 0;
+            Data_Sel[i] = 0xFF;
         }
         //while (UCB1STATW & UCBUSY);
         UCB1TXBUF = Data_Sel[position];
