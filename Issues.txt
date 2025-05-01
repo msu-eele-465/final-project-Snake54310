@@ -1,0 +1,2 @@
+1. RAM unresponsive to SPI messages
+2. copy/pasted I2C initialization no longer functions (I2C signals no longer sent when buffer is loaded and start condition is initialized)

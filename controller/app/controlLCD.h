@@ -7,8 +7,9 @@
 
 void sendChar(char last_input);
 void sendPosition(char send_pos);
-void sendMessage(int message);
-void enterState(int state);
+void sendMessage(char message);
+void sendHeader(char message);
+void enterState(char state);
 
 void init_LCD_I2C(void); 
 

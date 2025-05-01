@@ -4,10 +4,14 @@
 #include <msp430.h>
 #include <stdbool.h>
 #include <string.h>
+
+// TO FIX: Occasionally, if the last byte of a character send is a 1, the next character will have bit
+// 7 set as it is read by the EEPROM. I could either fix with haxx (always clear bit7 reading), 
+// or, I could actually resolve the issue.
 char write_en = 0b00000110; // 6
 char write_status_register = 0b00000001; // 1
-char packetAR[] = {0b00000011, 0, 0};
-char packetAW[] = {0b00000010, 0, 0};
+char packetAR[] = {0b00000011, 0, 1, 0};
+char packetAW[] = {0b00000010, 0, 1};
 char packetD[] = {'H', 'E', 'L', 'L', 'O', ' ', 'W', 'O', 'R', 'L', 'D'};
 
 volatile char Data_Sel[64] = {};
@@ -34,7 +38,8 @@ int main(void)
 
     UCB1BRW = 50;
 
-    UCB1CTLW0 &= ~UCCKPL;
+    UCB1CTLW0 |= UCCKPL;
+    UCB1CTLW0 |= UCCKPH;
     UCB1CTLW0 |= UCSYNC;
     UCB1CTLW0 |= UCMST | UCMSB;
 
@@ -84,10 +89,10 @@ int main(void)
         to_send = 2;
         while (UCB1STATW & UCBUSY);
         Data_Sel[0] = write_status_register;
-        Data_Sel[1] = 0x00000011; // BIT3 and Bit2 being 0 means no protected data,
-        // Bit0 being 1 enables write protect (is read only, dependent upon actual pin), 
-        // and bit1 being 1 does not disable writing (dependent upon whether something is already happening, read only)
-        // Bit7 is the write enabele latch, but I think that gets reset after then instruction anyways
+        Data_Sel[1] = 0b00000000; // BIT3 and Bit2 being 0 means no protected data,
+        // Bit0 is Write-in-Progress bit, prevents writes if write in progress (is read only), 
+        // and bit1 being 1 is write enable latch (read only, controlled by instruction)
+        // Bit7 is the write protect enable, 0 means write protect is disabled
         UCB1TXBUF = Data_Sel[0];
 
         __delay_cycles(50000);             // Delay for 100000*(1/MCLK)=0.05s
@@ -98,27 +103,19 @@ int main(void)
         UCB1TXBUF = Data_Sel[0];
         __delay_cycles(50000);             // Delay for 100000*(1/MCLK)=0.05s
         position = 0;
-        to_send = sizeof(packetAR) + sizeof(packetD);
-        for (i = 0; i < sizeof(packetAR); i++) {
+        to_send = sizeof(packetAW) + sizeof(packetD);
+        for (i = 0; i < sizeof(packetAW); i++) {
             Data_Sel[i] = packetAW[i];
         }
         for (; i < to_send; i++) {
-            Data_Sel[i] = packetD[i - sizeof(packetAR)];
+            Data_Sel[i] = packetD[i - sizeof(packetAW)];
         }
         while (UCB1STATW & UCBUSY);
         UCB1TXBUF = Data_Sel[position];
 
         __delay_cycles(50000);             // Delay for 100000*(1/MCLK)=0.05s
-        /*position = 0;
-        to_send = sizeof(packetD);
-        for (i = 0; i < to_send; i++) {
-            Data_Sel[i] = packetD[i];
-        }
-        while (UCB1STATW & UCBUSY);
-        UCB1TXBUF = Data_Sel[position];
-        __delay_cycles(5000);
-        */
-         UCB1IFG &= ~UCRXIFG;
+
+        UCB1IFG &= ~UCRXIFG;
         UCB1IE |= UCRXIE; // enable this interrupt when you want to read.
         UCB1IE &= ~UCTXIE; // we want read interrupt, not write
         position = 0;
@@ -130,7 +127,7 @@ int main(void)
         __delay_cycles(50000);
         
         position = 0;
-        to_send = sizeof(packetAW) + 11;
+        to_send = sizeof(packetAR) + 11;
         for (i = 0; i < to_send - 11; i++) {
             Data_Sel[i] = packetAR[i];
         }
@@ -153,11 +150,11 @@ __interrupt void ISR_EUSCI_B1(void) {
     case 2:
         {   
             position++;
-            if (position >= 3 && position < to_send) {
+            if (position >= sizeof(packetAR) && position < to_send) {
                 UCB1TXBUF = Data_Sel[position];
-                Rx_Data[position - 3] = UCB1RXBUF; // Store actual data
+                Rx_Data[position - sizeof(packetAR)] = UCB1RXBUF; // Store actual data
             } 
-            else if (position < 3) {
+            else if (position < sizeof(packetAR) && position < to_send) {
                 UCB1TXBUF = Data_Sel[position];
                 volatile char junk = UCB1RXBUF;     // Discard dummy RX
             }

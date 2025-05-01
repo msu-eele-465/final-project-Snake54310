@@ -4,8 +4,9 @@
 #include <msp430.h>
 #include <stdbool.h>
 
-char initADC(void);
-int initSPI(void);
-int initUART(void);
+void initADC(void);
+void initSPI(void);
+void initUART(void);
+void initMemStatReg(void); 
 
 #endif // INITSTUFF_H

@@ -24,12 +24,12 @@ int main(void)
     P1OUT &= ~0b00110011;                    // P1.5 is Enable Pin
     P1DIR |= 0b00110011;                    // P1.4 is RS pin
 
-    P2OUT &= ~BIT0;                      // status LED
-    P2DIR |= BIT0; 
+    /*P2OUT &= ~BIT0;                      // status LED
+    P2DIR |= BIT0; */
     // status interrupt
-    TB0CCTL0 |= CCIE;                            //CCIE enables Timer B0 interrupt
+    /*TB0CCTL0 |= CCIE;                            //CCIE enables Timer B0 interrupt
     TB0CCR0 = 32768;                            //sets Timer B0 to 1 second (32.768 kHz)
-    TB0CTL |= TBSSEL_1 | ID_0 | MC__UP | TBCLR;    //ACLK, No divider, Up mode, Clear timer
+    TB0CTL |= TBSSEL_1 | ID_0 | MC__UP | TBCLR;    //ACLK, No divider, Up mode, Clear timer*/
 
     // I2C slave code
     UCB0CTLW0 = UCSWRST;                //puts eUSCI_B0 into a reset state
@@ -75,22 +75,19 @@ int main(void)
                 switch (dataint) {
                     case 0:
                         clearLCD();
-                        CursorState = 0;
                         goToDDRLCD(0x00);
                         break;
                     case 1: 
-                        clearLCD();
-                        sendCommand(0x0C | 0x00000011); 
+                        sendCommand(0b00001111); 
                     case 2: 
-                        clearLCD();
-                        sendCommand(0x0C | 0x00000010); 
+                        sendCommand(0b00001110); 
                         break;
                     default: 
                         break;
+                }
             }
             else if (varint == 2) { // dataint is pattern name integer
                 clearLCD();
-                CursorState = 0;
                 goToDDRLCD(0x40);
                 if (dataint == 0) {
                     writeMessage("File Created");
@@ -105,7 +102,28 @@ int main(void)
                     writeMessage("Name Updated");
                 }
             }
+            else if (varint == 3) { // recieve header
+                clearLCD();
+                goToDDRLCD(0x00);
+                if (dataint == 0) {
+                    writeMessage("Choose File Name");
+                }
+                if (dataint == 1) {
+                    writeMessage("Select File");
+                }
+                if (dataint == 2) {
+                    writeMessage("Select Def Char");
+                }
+                /*else if (dataint == 1) {
+                    writeMessage("File Saved");
+                }*/
+            }
             else if (varint == 4) { // send position
+
+                if(dataint > 15) {
+                    dataint = (dataint - 16);
+                    dataint |= 0b01000000;
+                }
                 goToDDRLCD(dataint);
             }
             else if (varint == 5) { // send character
@@ -114,16 +132,13 @@ int main(void)
             else {
                 // do something or nothing in case of invalid send
             }
-            TB0CCTL0 |= CCIE;
         }
     }
-}
 }
 
 #pragma vector = EUSCI_B0_VECTOR
 __interrupt void I2C_ISR(void) {
     if (UCB0IFG & UCRXIFG0) {
-        TB0CCTL0 &= ~CCIE;
         if (dataRdy == 1) {
             if (index == 1) {
                 dataRead2[1] = UCB0RXBUF;
@@ -146,6 +161,5 @@ __interrupt void I2C_ISR(void) {
                 index = 1;
             }
         }
-        TB0CCTL0 |= CCIE;
     }
 }

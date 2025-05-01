@@ -4,7 +4,7 @@
 #include "shared.h"
 #include "initStuff.h"
 
-char initADC() {
+void initADC() {
         WDTCTL = WDTPW | WDTHOLD;               // Stop watchdog timer
     
         //-- Configure ADC
@@ -20,8 +20,9 @@ char initADC() {
 
         ADCMCTL0 |= ADCINCH_8;      //ADC Input Channel = A8)
         ADCIE |= ADCIE0;            // enable ADC Conv Complete IRQ
+        return;
 }
-int initSPI() {
+void initSPI() {
     WDTCTL = WDTPW | WDTHOLD;               // Stop watchdog timer
 
     UCB1CTLW0 |= UCSWRST;
@@ -33,7 +34,8 @@ int initSPI() {
 
     UCB1BRW = 50;
 
-    UCB1CTLW0 &= ~UCCKPL;
+    UCB1CTLW0 |= UCCKPL; // spi mode (1, 1)
+    UCB1CTLW0 |= UCCKPH;
     UCB1CTLW0 |= UCSYNC;
     UCB1CTLW0 |= UCMST | UCMSB;
 
@@ -53,13 +55,20 @@ int initSPI() {
     P4SEL1 &= ~BIT4; // Select STE
     P4SEL0 |= BIT4;
 
+
+    PM5CTL0 &= ~LOCKLPM5;                   // Disable the GPIO power-on default high-impedance mode
+                                            // to activate previously configured port settings
+
     UCB1CTLW0 &= ~UCSWRST;
 
     UCB1IFG &= ~UCTXIFG;
     UCB1IE |= UCTXIE;
+    return;
+    // UCB1IFG &= ~UCRXIFG;
+   // UCB1IE |= UCRXIE; // enable this interrupt when you want to read.
 
 }
-int initUART() {
+void initUART() {
     WDTCTL = WDTPW | WDTHOLD;               // Stop watchdog timer
     
      //-- 2. Configure eUSCI_A1 into SW reset
@@ -79,5 +88,30 @@ int initUART() {
                                             // to activate previously configured port settings
     //UCA1IE |= UCTXIE; 
     UCA1CTLW0 &= ~UCSWRST;    // Take eUSCI_A1 out of SW reset with UCSWRST=0
+    return;
 
 }
+
+void initMemStatReg() { // no protected data
+    position = 0;
+    to_send = 1;
+    while (UCB1STATW & UCBUSY);
+    Data_Sel[0] = 0b00000110;
+    UCB1TXBUF = Data_Sel[0];
+    __delay_cycles(5000);   
+
+    position = 0;
+    to_send = 2;
+    while (UCB1STATW & UCBUSY);
+    Data_Sel[0] = 0b00000001;
+    Data_Sel[1] = 0b00000000; // BIT3 and Bit2 being 0 means no protected data,
+    // Bit0 is Write-in-Progress bit, prevents writes if write in progress (is read only), 
+    // and bit1 being 1 is write enable latch (read only, controlled by instruction)
+    // Bit7 is the write protect enable, 0 means write protect is disabled
+    UCB1TXBUF = Data_Sel[0];
+
+    __delay_cycles(5000);
+    return;
+
+}
+

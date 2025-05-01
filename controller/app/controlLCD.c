@@ -8,43 +8,64 @@
 
 void sendChar(char last_input) {
     Data_Cnt = 0;
-    __delay_cycles(2000);
+    UCB0CTLW0 |= UCTR; 
+    __delay_cycles(7000);
     UCB0I2CSA = 0x0047; // choose slave address
     UCB0TBCNT = 0x02; // always send 2 bytes
     dataSend[0] = 5; // this will select the pattern selection variable on the slave
     dataSend[1] = last_input; // send value of previous/lastest input
     UCB0CTLW0 |= UCTXSTT; // generate start condition
+    while(UCB0CTLW0 & UCTXSTT) {}
     return;
 }
 void sendPosition(char send_pos) {
     Data_Cnt = 0;
-    __delay_cycles(2000);
+    UCB0CTLW0 |= UCTR; 
+    __delay_cycles(7000);
     UCB0I2CSA = 0x0047; // choose slave address
     UCB0TBCNT = 0x02; // always send 2 bytes
     dataSend[0] = 4; // this will select the pattern selection variable on the slave
     dataSend[1] = send_pos; // send value of previous/lastest input
     UCB0CTLW0 |= UCTXSTT; // generate start condition
+    while(UCB0CTLW0 & UCTXSTT) {}
     return;
 }
-void sendMessage(int message) {
+void sendMessage(char message) {
     Data_Cnt = 0;
-    __delay_cycles(4000);
+    UCB0CTLW0 |= UCTR; 
+    __delay_cycles(7000);
     UCB0I2CSA = 0x0047; // choose slave address
     UCB0TBCNT = 0x02;
     dataSend[0] = 2; // this will select the pattern selection variable on the slave
     dataSend[1] = message; // send message # to LCD
     UCB0CTLW0 |= UCTXSTT; // generate start condition
+    while(UCB0CTLW0 & UCTXSTT) {}
     return;
 
 }   
-void enterState(int state) { // 0 is notification send, 1 is edit state, 2 is view state
+void sendHeader(char message) {
     Data_Cnt = 0;
-    __delay_cycles(2000);
+    UCB0CTLW0 |= UCTR; 
+    __delay_cycles(7000);
+    UCB0I2CSA = 0x0047; // choose slave address
+    UCB0TBCNT = 0x02;
+    dataSend[0] = 3; // this will select the pattern selection variable on the slave
+    dataSend[1] = message; // send message # to LCD
+    UCB0CTLW0 |= UCTXSTT; // generate start condition
+    while(UCB0CTLW0 & UCTXSTT) {}
+    return;
+
+}   
+void enterState(char state) { // 0 is notification send, 1 is edit state, 2 is view state
+    Data_Cnt = 0;
+    UCB0CTLW0 |= UCTR; 
+    __delay_cycles(7000);
     UCB0I2CSA = 0x0047; // choose slave address
     UCB0TBCNT = 0x02;
     dataSend[0] = 1; // this will select the pattern selection variable on the slave
     dataSend[1] = state;
     UCB0CTLW0 |= UCTXSTT; // generate start condition
+    while(UCB0CTLW0 & UCTXSTT) {}
     return;
 }
 
@@ -71,7 +92,6 @@ void init_LCD_I2C() {
     UCB0CTLW0 &= ~UCSWRST;
 
     UCB0IE |= UCTXIE0; // enable IQR
-    UCB0IE |= UCRXIE0; // the other one
     return;
 
 }

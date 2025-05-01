@@ -5,7 +5,7 @@
 #include <string.h>
 
 //** USE COM9 FOR UART COMMUNICATION!!!
-//** BAUD rate 57.6 K!!!
+//** BAUD rate 57.6 K!!!x
 // TX is PIN 23
 // RX is PIN 24
 char out_string_first[] = "\n\r Motor advanced 1 step \r\n";
