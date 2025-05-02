@@ -66,18 +66,18 @@ volatile system_states state = LOCKED;
 //volatile bool update_time = false;
 // variables associated with below methods:
 // file storage and navigation
-volatile char fileNames[32][16] = {}; // 32 files, 16 characters each
-volatile uint16_t fileMemoryLocations[32][16] = {}; // 32 files, up to 16 memory locations each
-volatile uint8_t fileSizes[32] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ,0}; 
+volatile char fileNames[33][17] = {}; // 32 files, 16 characters each
+volatile uint16_t fileMemoryLocations[33][17] = {}; // 32 files, up to 16 memory locations each
+volatile uint8_t fileSizes[33] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ,0}; 
 volatile uint16_t nextFreeMemory = 0; // this is the next free memory location to which we allocate memory. Starts at 0.
 volatile uint8_t currentFileIndex = 0;
 volatile uint8_t nextFileIndex = 0;
-volatile char currentFile[1024] = " ";
-char currentPosition;
-char currentChar;
-char defaultChar = ' '; // will be ' ' after debugging
-volatile char CurrentFileName[16] = " "; // name may be misleading--this is only used in actual file creation. Technically unecessary, but a convenient middle step
-char number_of_files = 0;
+volatile char currentFile[1025] = {};
+volatile char currentPosition = 0;
+volatile char currentChar = 0;
+volatile char defaultChar = ' '; // will be ' ' after debugging
+volatile char CurrentFileName[17] = {}; // name may be misleading--this is only used in actual file creation. Technically unecessary, but a convenient middle step
+volatile char number_of_files = 0;
 
 
 void createFile() {
@@ -236,7 +236,7 @@ void viewFile() {
             input_change = false;
         }
     }
-    saveCurrentFile();// save file to memory at defined locations
+    // saveCurrentFile();// save file to memory at defined locations -- was useful for testing, but is unnessesary for viewing.
     sendMessage(6); // notify user of end file viewing
     return;
     
@@ -248,6 +248,8 @@ void allocateFileMemory() {
     
     fileSelect();
 
+    loadFileFromMem(); // this is so we can update it after allocating more memory. 
+
     sendHeader(3);
     enterState(2);
 
@@ -255,21 +257,24 @@ void allocateFileMemory() {
     char lastInput = 'I';
     bool input_change = false;
 
-    int prevSize = fileSizes[currentFileIndex];
-    int addedSize = 0;
-    int maxAdd = 16 - prevSize;
+    volatile char prevSize = fileSizes[currentFileIndex];
+    volatile char addedSize = 0;
+    volatile char maxAdd = 16 - prevSize;
     bool displayNewSize = false;
     int rows;
 
     while (lastInput != '*') { // select file size
         listenDials();
         if(CW8) {
-            addedSize = (addedSize + 1)%maxAdd;
+            addedSize = (addedSize + 1)%(maxAdd + 1);
             CW8 = false;
             displayNewSize = true;
         }
         if(CCW8) {
-            addedSize = (addedSize - 1)%maxAdd;;
+            addedSize = addedSize - 1;
+            if((addedSize < prevSize) || (addedSize > prevSize)) {
+                addedSize = maxAdd;
+            }
             CCW8 = false;
             displayNewSize = true;
         }
@@ -312,6 +317,12 @@ void allocateFileMemory() {
         fileMemoryLocations[currentFileIndex][prevSize + i] = nextFreeMemory;
         nextFreeMemory = nextFreeMemory + 64;
     }
+    for(i = (prevSize*64); i < ((addedSize + prevSize)*64); i++) { // keep it fresh, as they say. Or, delete this for haxx to access previous files
+        currentFile[i] = defaultChar;
+    }
+
+    saveCurrentFile();
+
     sendMessage(1);
     return;
 }
@@ -337,7 +348,7 @@ void editFileName() {
 
     FileNameEditor();
 
-    sendMessage('3'); // name updated message
+    sendMessage(3); // name updated message
     return;
 }
 void deleteFile() {
@@ -353,7 +364,7 @@ void deleteFile() {
         fileNames[currentFileIndex][i] = 'D';
     }
     // do not decrease file counter-- this file and it's memory locations technically still exist, but we want to track freed memory addresses
-    sendMessage('4'); // file deleted message
+    sendMessage(4); // file deleted message
     return;
 }
 void sendTerminal() {
@@ -516,11 +527,11 @@ char charCatSel(char Choice) {
     }
     return currentChar;
 }
-void printFromFile(int Position) {
+void printFromFile(int filePosition) {
     int i;
     sendPosition(0);
-    for (i = Position; i < (Position + 32); i++) {
-        if(i == Position + 16) {
+    for (i = filePosition; i < (filePosition + 32); i++) {
+        if(i == filePosition + 16) {
             sendPosition(16);
         }
         sendChar(currentFile[i]);
@@ -597,12 +608,12 @@ void loadFileFromMem() {
         packetAR[1] = (((fileMemoryLocations[currentFileIndex][n]) & ~(0x00FF))/0xFF); // 8 MSB of memory address
         packetAR[2] = ((fileMemoryLocations[currentFileIndex][n]) & ~(0xFF00)); // 8 LSB of memory address
 
-        to_send = sizeof(packetAR) + 64; // always write full pages
+        to_send = sizeof(packetAR) + 64; // always read full pages
         int i;
         for (i = 0; i < to_send - 64; i++) {
             Data_Sel[i] = packetAR[i];
         }
-        for (; i < to_send; i++) { //i = (to_send - 11)
+        for (; i < to_send; i++) { //i = (to_send - 64)
             Data_Sel[i] = 0xFF;
         }
         while (UCB1STATW & UCBUSY);
@@ -709,20 +720,30 @@ void fileSelect() {
         }
         if(CW9) {
             currentFileIndex += 1;
-            currentFileIndex = (currentFileIndex)%number_of_files;
+            if (currentFileIndex >= number_of_files) {
+                currentFileIndex = 0;
+            }
             if(fileSizes[currentFileIndex] == 19) {
                 currentFileIndex += 1;
-                currentFileIndex = (currentFileIndex)%number_of_files;
+            }
+            if (currentFileIndex >= number_of_files) {
+                currentFileIndex = 0;
             }
             displayCurrentFileName();
             CW9 = false;
         }
         if(CCW9) {
-            currentPosition += -1;
-            currentFileIndex = (currentFileIndex)%number_of_files;
+            currentFileIndex += -1;
+            if (currentFileIndex >= number_of_files) {
+                currentFileIndex = number_of_files;
+                currentFileIndex += -1;
+            }
             if(fileSizes[currentFileIndex] == 19) {
-                currentPosition += -1;
-                currentFileIndex = (currentFileIndex)%number_of_files;
+                currentFileIndex += -1;
+            }
+            if (currentFileIndex >= number_of_files) {
+                currentFileIndex = number_of_files;
+                currentFileIndex += -1;
             }
             displayCurrentFileName();
             CCW9 = false;
@@ -1055,3 +1076,34 @@ __interrupt void ISR_EUSCI_B1(void) {
     }
 }
 //----------- END SPI ISR -----------------
+//-- UART ISR -------------------------------
+/*
+#pragma vector=EUSCI_A1_VECTOR
+__interrupt void ISR_EUSCI_A1(void)
+{   //if ((UCTXCPTIFG & UCA1IFG) == 0) { // does not work because UCTXCPTIFG is always has bit 3 set here
+    if (position == -1) { // if position has not been set to zero, or is otherwise positive
+        Received[positionr] = UCA1RXBUF;
+        positionr ++;
+        if(positionr > 63) {
+            UCA1IE &= ~UCTXCPTIE; // clear flag
+            UCA1IE &= ~UCRXIE; // disable this interrupt
+        }
+        else {
+            // do nothing and wait for next character
+        }
+    }
+    else { // if position has been set to 0 or is currently in use
+        if (position == strlen(out_string)){ // if position now equals the string length
+            UCA1IE &= ~UCTXCPTIE; // clear flag
+            position = -1; // set position back to default of -1
+        }
+        else { // if string still has unsent characters
+            position ++;
+            int j;
+            for(j = 0; j < 1000; j++);
+            UCA1TXBUF = out_string[position]; // send nth character of string
+        }
+    }
+    UCA1IFG &= ~UCTXCPTIFG;
+}*/
+//-- END UART ISR -------------------------------
