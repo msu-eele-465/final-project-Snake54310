@@ -1,5 +1,4 @@
 
-#include <locale>
 #include <msp430.h>
 #include <stdbool.h>
 #include <string.h>
@@ -20,26 +19,6 @@ volatile unsigned int red_counter = 0;
 volatile unsigned int green_counter = 0;
 volatile unsigned int blue_counter = 0;
 
-// need some variable to represent file name array. Indexes should match with an 'addresses start' array from memory. Name will not be more than 16 characters.
-// allow user to create up to 15 files, too. Probably: volatile char[15][16] FileNames; and: volatile unsigned int[16] Addresses; 
-// also need integer to track display position
-// also need booleans and ints to track ADC8 and ADC9 actions (listen for next input, increment/decrement position/character/row)
-// need space reserved to store active file (maybe just an array of size 2KB)
-// need variable to track position in file
-// need variable to track position in EEPROM
-// need variable to track read value of EEPROM
-
-//volatile float pelt_temp = 0; // whether this actually ever becomes a float remains to be seen. My gut tells me no, though.
-//volatile float cur_temp = 0;  // this is what you update to the degrees celcius
-volatile unsigned int send_temp = 0;
-volatile unsigned int send_temp_dec = 0;
-
-//volatile bool send_time_op = false;
-//volatile bool is_read = false;
-//volatile bool send_next_temp = false;
-//volatile bool record_next_temp = false; // Set this varibale every .5 seconds when the system is not locked.
-//volatile char next_window = '3';
-//volatile char confirm_window = '3';
 // ----------- ADC VARIABLES ------
 
 volatile unsigned int ADC_Value = 0;
@@ -64,7 +43,7 @@ char write_status_register = 0b00000001; // 1
 char packetAR[] = {0b00000011, 0, 0, 0};
 char packetAW[] = {0b00000010, 0, 0};
 
-volatile char Data_Sel[64] = {};
+volatile char Data_Sel[68] = {};
 volatile bool isRead = false;
 volatile int position = 0;
 volatile unsigned int to_send = 0;
@@ -116,61 +95,15 @@ void createFile() {
     currentPosition = 16;
     currentChar = defaultChar;
     sendPosition(currentPosition);
-    sendChar(currentChar);
-    sendPosition(currentPosition);
+
     int i;
     for (i = 0; i < 16; i++) {
         CurrentFileName[i] = defaultChar; // save default file name
+        sendChar(defaultChar);
     }
-    CurrentFileName[currentPosition - 16] = currentChar;
-    char lastInput = 'I';
-    int rows;
-    bool input_change = false;
-    while (lastInput != '*') { // create file name
-        listenDials();
-        if(CW8) {
-            currentChar += 1;
-            CurrentFileName[currentPosition - 16] = currentChar;
-            sendChar(currentChar);
-            sendPosition(currentPosition);
-            CW8 = false;
-        }
-        if(CCW8) {
-            currentChar += -1;
-            CurrentFileName[currentPosition - 16] = currentChar;
-            sendChar(currentChar);
-            sendPosition(currentPosition);
-            CCW8 = false;
-        }
-        if(CW9) {
-            currentPosition += 1;
-            currentPosition = (currentPosition)%16 + 16;
-            sendPosition(currentPosition);
-            CW9 = false;
-        }
-        if(CCW9) {
-            currentPosition += -1;
-            currentPosition = (currentPosition)%16 + 16;
-            sendPosition(currentPosition);
-            CCW9 = false;
-        }
-        rows = P3IN; // constantly listen for an input
-        rows &= 0b11110000; // clear any values on lower 4 bits
-        if (rows != 0b00000000) {
-            lastInput = readInput();         
-            input_change = true;
-        }
-        if (input_change) {
-            currentChar = charCatSel(lastInput);
-            CurrentFileName[currentPosition - 16] = currentChar;
-            sendChar(currentChar);
-            sendPosition(currentPosition);
-            input_change = false;
-        }
-    }
-    for (i = 0; i < 16; i++) {
-        fileNames[currentFileIndex][i] = CurrentFileName[i]; // save file name
-    }
+    sendPosition(currentPosition);
+    
+    FileNameEditor();
 
     enterState(0); // flush screen
     enterState(1); // setup LDC and file pointer
@@ -236,9 +169,10 @@ void viewFile() {
 
     int sizeOfFile = (fileSizes[currentFileIndex] * 64); // get size of new file
 
-    lastInput = 'I';
-    input_change = false;
+    char lastInput = 'I';
+    bool input_change = false;
     unsigned int currentFilePos = 0;
+    int rows;
 
     while (lastInput != '*') { // view file
         listenDials(); 
@@ -246,7 +180,7 @@ void viewFile() {
             currentPosition ^= 0b00010000; // always switch the line--this is simple
             currentFilePos += 16;
             currentFilePos = currentFilePos % sizeOfFile;
-            if(currentPosition < 15) { // this means bit has been un-set, so we print the next two lines
+            if(currentPosition < 16) { // this means bit has been un-set, so we print the next two lines
                 printFromFile(currentFilePos - currentFilePos%32);
             }
 
@@ -259,11 +193,10 @@ void viewFile() {
             if (currentFilePos > sizeOfFile) {
                 currentFilePos = sizeOfFile - 1;
             }
-            if(currentPosition > 16) { // this means bit has been set, so we print the previous two lines
+            if(currentPosition > 15) { // this means bit has been set, so we print the previous two lines
                 printFromFile(currentFilePos - currentFilePos%32);
             }
 
-            printFromFile(currentFilePos - currentFilePos%32);
             sendPosition(currentPosition);
             CCW8 = false;
         }
@@ -304,7 +237,7 @@ void viewFile() {
         }
     }
     saveCurrentFile();// save file to memory at defined locations
-    sendMessage(2); // notify user of successful file editing
+    sendMessage(6); // notify user of end file viewing
     return;
     
 }
@@ -315,8 +248,72 @@ void allocateFileMemory() {
     
     fileSelect();
 
-    
+    sendHeader(3);
+    enterState(2);
 
+    currentPosition = 16;
+    char lastInput = 'I';
+    bool input_change = false;
+
+    int prevSize = fileSizes[currentFileIndex];
+    int addedSize = 0;
+    int maxAdd = 16 - prevSize;
+    bool displayNewSize = false;
+    int rows;
+
+    while (lastInput != '*') { // select file size
+        listenDials();
+        if(CW8) {
+            addedSize = (addedSize + 1)%maxAdd;
+            CW8 = false;
+            displayNewSize = true;
+        }
+        if(CCW8) {
+            addedSize = (addedSize - 1)%maxAdd;;
+            CCW8 = false;
+            displayNewSize = true;
+        }
+        if(CW9) {
+            CW9 = false;
+        }
+        if(CCW9) {
+            CCW9 = false;
+        }
+        if (((addedSize + prevSize) > 9) && (displayNewSize)) {
+            sendPosition(currentPosition);
+            sendChar('1');
+            int displaysize = addedSize + prevSize - 10;
+            sendChar(displaysize + '0');
+            displayNewSize = false;
+        }
+        else if (displayNewSize) {
+            sendPosition(currentPosition);
+            sendChar(' ');
+            sendChar(' ');
+            sendPosition(currentPosition);
+            int displaysize = addedSize + prevSize;
+            sendChar(displaysize + '0');
+            displayNewSize = false;
+        }
+        
+        rows = P3IN; // constantly listen for an input
+        rows &= 0b11110000; // clear any values on lower 4 bits
+        if (rows != 0b00000000) {
+            lastInput = readInput();         
+            input_change = true;
+        }
+        if (input_change) {
+            input_change = false;
+        }
+    }
+    fileSizes[currentFileIndex] = addedSize + prevSize;
+    int i;
+    for (i = 0; i < addedSize; i++) {
+        fileMemoryLocations[currentFileIndex][prevSize + i] = nextFreeMemory;
+        nextFreeMemory = nextFreeMemory + 64;
+    }
+    sendMessage(1);
+    return;
 }
 void editFileName() {
     currentFileIndex = 0;
@@ -325,26 +322,156 @@ void editFileName() {
     
     fileSelect();
 
+    sendHeader(0); // setup LDC and file name pointer
+    enterState(1);
+    currentPosition = 16;
+    sendPosition(currentPosition);
 
+    int i;
+    for (i = 0; i < 16; i++) {
+        CurrentFileName[i] = fileNames[currentFileIndex][i]; // load file name
+        sendChar(CurrentFileName[i]);
+    }
+
+    sendPosition(currentPosition);
+
+    FileNameEditor();
+
+    sendMessage('3'); // name updated message
+    return;
 }
 void deleteFile() {
     currentFileIndex = 0;
     sendHeader(1); // "select file" message
     enterState(2); // viewing mode (view file names)
     
-    fileSelect();
+    fileSelect(); 
 
-
+    fileSizes[currentFileIndex] = 19; // code for "addesses assocaited with this file position are free"
+    int i;
+    for (i = 0; i < 16; i++) {
+        fileNames[currentFileIndex][i] = 'D';
+    }
+    // do not decrease file counter-- this file and it's memory locations technically still exist, but we want to track freed memory addresses
+    sendMessage('4'); // file deleted message
+    return;
 }
 void sendTerminal() {
-    
+    // sift through all files, pulling every one (besides deleted ones: file size 19) into currentFile (using loafFileFromMem()), and sending them over uart 
+    // in the form: file name (16 bytes), fileSize(as a character representing the number of pages), file contents (correct number exactly)
 }
 void recieveTerminal() {
-    
+    // start listening for one file to move to memory. Collect file as first 16 bytes being name, 17th char being size, and the remainder 
+    // being contents (amount based upon recieved size). Determine memory addresses sequentially (as we have been), then transfer file to memory
+    // at the appropriate addesses (done correctly, you can call 'write current file')
+    // wait for user input. '*' means all files have been sent, '1' means they are sending another from the terminal. 
+    // repeat until * is recieved. 
 }
 void changeEditChar() {
-    
+    sendHeader(2); // "select default character" message
+    enterState(1); // editing mode (view file names)
+
+    char lastInput = 'I';
+    int rows;
+    bool input_change = false;
+    int currentPosition = 16;
+    sendPosition(currentPosition);
+    while (lastInput != '*') { // create file name
+        listenDials();
+        if(CW8) {
+            defaultChar += 1;
+            sendChar(defaultChar);
+            sendPosition(currentPosition);
+            CW8 = false;
+        }
+        if(CCW8) {
+            defaultChar += -1;
+            sendChar(defaultChar);
+            sendPosition(currentPosition);
+            CCW8 = false;
+        }
+        if(CW9) {
+            CW9 = false;
+        }
+        if(CCW9) {
+            CCW9 = false;
+        }
+        rows = P3IN; // constantly listen for an input
+        rows &= 0b11110000; // clear any values on lower 4 bits
+        if (rows != 0b00000000) {
+            lastInput = readInput();         
+            input_change = true;
+        }
+        if (input_change) {
+            currentChar = charCatSel(lastInput);
+            if(currentChar != 0x02) {
+                defaultChar = currentChar;
+            }
+            sendChar(defaultChar);
+            sendPosition(currentPosition);
+            input_change = false;
+        }
+    }
+
+    sendMessage(5);
 }
+
+
+void FileNameEditor() {
+    char lastInput = 'I';
+    int rows;
+    bool input_change = false;
+    while (lastInput != '*') { // create file name
+        listenDials();
+        if(CW8) {
+            currentChar += 1;
+            CurrentFileName[currentPosition - 16] = currentChar;
+            sendChar(currentChar);
+            sendPosition(currentPosition);
+            CW8 = false;
+        }
+        if(CCW8) {
+            currentChar += -1;
+            CurrentFileName[currentPosition - 16] = currentChar;
+            sendChar(currentChar);
+            sendPosition(currentPosition);
+            CCW8 = false;
+        }
+        if(CW9) {
+            currentPosition += 1;
+            currentPosition = (currentPosition)%16 + 16;
+            sendPosition(currentPosition);
+            CW9 = false;
+        }
+        if(CCW9) {
+            currentPosition += -1;
+            currentPosition = (currentPosition)%16 + 16;
+            sendPosition(currentPosition);
+            CCW9 = false;
+        }
+        rows = P3IN; // constantly listen for an input
+        rows &= 0b11110000; // clear any values on lower 4 bits
+        if (rows != 0b00000000) {
+            lastInput = readInput();         
+            input_change = true;
+        }
+        if (input_change) {
+            char nextChar = charCatSel(lastInput);
+            if (nextChar != 0x02) {
+                currentChar = nextChar;
+            }
+            CurrentFileName[currentPosition - 16] = currentChar;
+            sendChar(currentChar);
+            sendPosition(currentPosition);
+            input_change = false;
+        }
+    }
+    int i;
+    for (i = 0; i < 16; i++) {
+        fileNames[currentFileIndex][i] = CurrentFileName[i]; // save file name
+    }
+}
+
 void listenDials() {
     complete = false;
     ADCCTL0 |= ADCENC | ADCSC;      // Enable and Start conversion
@@ -370,7 +497,7 @@ void listenDials() {
     return;
 }
 char charCatSel(char Choice) {
-    char currentChar;
+    char currentChar = 0x02;
     switch (Choice) {
         case 'A':
             currentChar = 'A';
@@ -401,11 +528,15 @@ void printFromFile(int Position) {
     return;
 }
 void saveCurrentFile() { 
+    TB0CCTL0 &= ~CCIE; // disable rgb timer inturrupt
+    TB1CCTL0 &= ~CCIE;
+    UCA1CTLW0 |= UCSWRST;
+    ADCIE &= ~ADCIE0;
     P2OUT |= BIT1; // LED to tell user program is writing/reading
     isRead = false;
     int sizeOfCurrent = fileSizes[currentFileIndex];
     int n;
-    int positionFile;
+    int positionFile = 0;
     __delay_cycles(5000);
     for (n = 0; n < sizeOfCurrent; n++) {
         position = 0;
@@ -430,10 +561,14 @@ void saveCurrentFile() {
         }
         while (UCB1STATW & UCBUSY);
         UCB1TXBUF = Data_Sel[position]; // send 64 byte file component
-        __delay_cycles(5000);
+        __delay_cycles(50000);
     }
 
     P2OUT &= ~BIT1;
+    TB0CCTL0 |= CCIE; // enable rgb timer inturrupt
+    TB1CCTL0 |= CCIE;
+    UCA1CTLW0 &= ~UCSWRST;
+    ADCIE |= ADCIE0;
 
 }
 
@@ -446,6 +581,8 @@ void displayCurrentFileName() {
 }
 
 void loadFileFromMem() {
+    TB0CCTL0 &= ~CCIE; // disable timer interrupt
+    TB1CCTL0 &= ~CCIE; 
     P2OUT |= BIT1; // LED to tell user program is writing/reading
     UCB1IFG &= ~UCRXIFG;
     UCB1IE |= UCRXIE; // enable this interrupt when you want to read.
@@ -460,8 +597,7 @@ void loadFileFromMem() {
         packetAR[1] = (((fileMemoryLocations[currentFileIndex][n]) & ~(0x00FF))/0xFF); // 8 MSB of memory address
         packetAR[2] = ((fileMemoryLocations[currentFileIndex][n]) & ~(0xFF00)); // 8 LSB of memory address
 
-        position = 0;
-        to_send = sizeof(packetAR) + 64;
+        to_send = sizeof(packetAR) + 64; // always write full pages
         int i;
         for (i = 0; i < to_send - 64; i++) {
             Data_Sel[i] = packetAR[i];
@@ -472,11 +608,9 @@ void loadFileFromMem() {
         while (UCB1STATW & UCBUSY);
         UCB1TXBUF = Data_Sel[position];
 
-        to_send = sizeof(packetAW) + 64; // always write full pages
-
         while (UCB1STATW & UCBUSY);
         UCB1TXBUF = Data_Sel[position]; // send 64 byte file component
-        __delay_cycles(5000);
+        __delay_cycles(50000);
         for(i = 0; i < sizeof(Rx_Data); i++){
             currentFile[i + 64*n] = Rx_Data[i];
         }
@@ -486,6 +620,8 @@ void loadFileFromMem() {
     UCB1IE |= UCTXIE;// enable this interrupt when you want to write.
     isRead = false;
     P2OUT &= ~BIT1;
+    TB0CCTL0 |= CCIE; // re-enable timer inturrupt
+    TB1CCTL0 |= CCIE;
 }
 
 void editMode() {
@@ -495,6 +631,7 @@ void editMode() {
     char lastInput = 'I';
     int rows;
     bool input_change = false;
+    unsigned int currentFilePos = 0;
     while (lastInput != '*') { // create file
         listenDials(); 
         if(CW8) {
@@ -544,7 +681,10 @@ void editMode() {
             input_change = true;
         }
         if (input_change) {
-            currentChar = charCatSel(lastInput);
+            char nextChar = charCatSel(lastInput);
+            if (nextChar != 0x02) {
+                currentChar = nextChar;
+            }
             currentFile[currentFilePos] = currentChar;
             sendChar(currentChar);
             sendPosition(currentPosition);
@@ -558,6 +698,7 @@ void fileSelect() {
     char lastInput = 'I';
     bool input_change = false;
     displayCurrentFileName();
+    int rows;
     while (lastInput != '*') { // select file name
         listenDials();
         if(CW8) {
@@ -569,12 +710,20 @@ void fileSelect() {
         if(CW9) {
             currentFileIndex += 1;
             currentFileIndex = (currentFileIndex)%number_of_files;
+            if(fileSizes[currentFileIndex] == 19) {
+                currentFileIndex += 1;
+                currentFileIndex = (currentFileIndex)%number_of_files;
+            }
             displayCurrentFileName();
             CW9 = false;
         }
         if(CCW9) {
             currentPosition += -1;
             currentFileIndex = (currentFileIndex)%number_of_files;
+            if(fileSizes[currentFileIndex] == 19) {
+                currentPosition += -1;
+                currentFileIndex = (currentFileIndex)%number_of_files;
+            }
             displayCurrentFileName();
             CCW9 = false;
         }
@@ -668,7 +817,7 @@ int main(void)
                     input_change = true;
                 }
             }
-            else if (lastInput == '2'  && input_change) { // Edit file
+            else if (lastInput == '2'  && input_change && number_of_files > 0) { // Edit file
                 input_change = false;
                 editFile();
                 rows = P3IN; // constantly listen for an input
@@ -678,7 +827,7 @@ int main(void)
                     input_change = true;
                 }
             }
-            else if (lastInput == '3'  && input_change) { // view file
+            else if (lastInput == '3'  && input_change && number_of_files > 0) { // view file
                 input_change = false;
                 viewFile();
                 rows = P3IN; // constantly listen for an input
@@ -688,7 +837,7 @@ int main(void)
                     input_change = true;
                 }
             }
-            else if (lastInput == '4'  && input_change) { // allocate memory to file
+            else if (lastInput == '4'  && input_change && number_of_files > 0) { // allocate memory to file
                 input_change = false;
                 allocateFileMemory();
                 rows = P3IN; // constantly listen for an input
@@ -698,7 +847,7 @@ int main(void)
                     input_change = true;
                 }
             }
-            else if (lastInput == '5'  && input_change) { // edit file name
+            else if (lastInput == '5'  && input_change && number_of_files > 0) { // edit file name
                 input_change = false;
                 editFileName();
                 rows = P3IN; // constantly listen for an input
@@ -709,7 +858,7 @@ int main(void)
                     input_change = true;
                 }
             }
-            else if (lastInput == '6'  && input_change) { // delete file
+            else if (lastInput == '6'  && input_change && number_of_files > 0) { // delete file
                 input_change = false;
                 deleteFile();
                 rows = P3IN; // constantly listen for an input
@@ -720,7 +869,7 @@ int main(void)
                     input_change = true;
                 }
             }
-            else if (lastInput == '7'  && input_change) { // save files to terminal
+            else if (lastInput == '7'  && input_change && number_of_files > 0) { // save files to terminal
                 input_change = false;
                 sendTerminal();
                 rows = P3IN; // constantly listen for an input
@@ -881,7 +1030,7 @@ __interrupt void ISR_EUSCI_B1(void) {
             position++;
             if (position >= sizeof(packetAR) && position < to_send) {
                 UCB1TXBUF = Data_Sel[position];
-                Rx_Data[position - sizeof(packetAR)] = UCB1RXBUF & ~(0b100000000); // Store actual data, clear msb as temporary countermeasure to issue
+                Rx_Data[position - sizeof(packetAR)] = UCB1RXBUF & ~(0b10000000); // Store actual data, clear msb as temporary countermeasure to issue
             } 
             else if (position < sizeof(packetAR) && position < to_send) {
                 UCB1TXBUF = Data_Sel[position];
@@ -892,7 +1041,6 @@ __interrupt void ISR_EUSCI_B1(void) {
         break;
     case 4:
          {
-            //volatile char junk = UCB1RXBUF;
             position++;
             if (position < to_send) {
                 UCB1TXBUF = Data_Sel[position];

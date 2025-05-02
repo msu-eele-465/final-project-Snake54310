@@ -12,7 +12,7 @@ char write_en = 0b00000110; // 6
 char write_status_register = 0b00000001; // 1
 char packetAR[] = {0b00000011, 0, 1, 0};
 char packetAW[] = {0b00000010, 0, 1};
-char packetD[] = {'H', 'E', 'L', 'L', 'O', ' ', 'W', 'O', 'R', 'L', 'D'};
+char packetD[] = {'H', 'E', 'L', 'L', 'O', ' ', 'W', 'O', 'R', 'L', 'D', 'M', 'O', 'R', 'E', 'B', 'I', 'T', 'S'};
 
 volatile char Data_Sel[64] = {};
 

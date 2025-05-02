@@ -9,7 +9,7 @@
 void sendChar(char last_input) {
     Data_Cnt = 0;
     UCB0CTLW0 |= UCTR; 
-    __delay_cycles(7000);
+    __delay_cycles(2000);
     UCB0I2CSA = 0x0047; // choose slave address
     UCB0TBCNT = 0x02; // always send 2 bytes
     dataSend[0] = 5; // this will select the pattern selection variable on the slave
@@ -21,7 +21,7 @@ void sendChar(char last_input) {
 void sendPosition(char send_pos) {
     Data_Cnt = 0;
     UCB0CTLW0 |= UCTR; 
-    __delay_cycles(7000);
+    __delay_cycles(2000);
     UCB0I2CSA = 0x0047; // choose slave address
     UCB0TBCNT = 0x02; // always send 2 bytes
     dataSend[0] = 4; // this will select the pattern selection variable on the slave
@@ -33,7 +33,7 @@ void sendPosition(char send_pos) {
 void sendMessage(char message) {
     Data_Cnt = 0;
     UCB0CTLW0 |= UCTR; 
-    __delay_cycles(7000);
+    __delay_cycles(2000);
     UCB0I2CSA = 0x0047; // choose slave address
     UCB0TBCNT = 0x02;
     dataSend[0] = 2; // this will select the pattern selection variable on the slave
@@ -46,7 +46,7 @@ void sendMessage(char message) {
 void sendHeader(char message) {
     Data_Cnt = 0;
     UCB0CTLW0 |= UCTR; 
-    __delay_cycles(7000);
+    __delay_cycles(2000);
     UCB0I2CSA = 0x0047; // choose slave address
     UCB0TBCNT = 0x02;
     dataSend[0] = 3; // this will select the pattern selection variable on the slave
@@ -59,7 +59,7 @@ void sendHeader(char message) {
 void enterState(char state) { // 0 is notification send, 1 is edit state, 2 is view state
     Data_Cnt = 0;
     UCB0CTLW0 |= UCTR; 
-    __delay_cycles(7000);
+    __delay_cycles(2000);
     UCB0I2CSA = 0x0047; // choose slave address
     UCB0TBCNT = 0x02;
     dataSend[0] = 1; // this will select the pattern selection variable on the slave

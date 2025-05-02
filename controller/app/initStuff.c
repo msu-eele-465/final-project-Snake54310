@@ -96,14 +96,14 @@ void initMemStatReg() { // no protected data
     position = 0;
     to_send = 1;
     while (UCB1STATW & UCBUSY);
-    Data_Sel[0] = 0b00000110;
+    Data_Sel[0] = write_en;
     UCB1TXBUF = Data_Sel[0];
     __delay_cycles(5000);   
 
     position = 0;
     to_send = 2;
     while (UCB1STATW & UCBUSY);
-    Data_Sel[0] = 0b00000001;
+    Data_Sel[0] = write_status_register;
     Data_Sel[1] = 0b00000000; // BIT3 and Bit2 being 0 means no protected data,
     // Bit0 is Write-in-Progress bit, prevents writes if write in progress (is read only), 
     // and bit1 being 1 is write enable latch (read only, controlled by instruction)

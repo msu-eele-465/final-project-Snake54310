@@ -12,20 +12,19 @@ extern volatile unsigned int blue_counter;
 
 extern volatile unsigned int Data_Cnt;
 
-extern volatile unsigned int dataRead[3];
 extern volatile unsigned int dataSend[2];
-extern volatile bool send_next_temp;
-extern volatile char next_window;
-extern volatile char confirm_window;
-extern volatile bool record_next_temp;
-extern volatile float cur_temp; // this is what you update to thedegrees celcius
-extern volatile float pelt_temp;
-extern volatile unsigned int send_temp;
-extern volatile unsigned int send_temp_dec;
 
 extern volatile unsigned int ADC_Value;
+extern char write_en; // 6
+extern char write_status_register; // 1
+extern char packetAR[4];
+extern char packetAW[3];
 
-extern volatile bool is_read;
+extern volatile char Data_Sel[68];
+extern volatile bool isRead;
+extern volatile int position;
+extern volatile unsigned int to_send;
+extern volatile int Rx_Data[64];
 
 extern volatile system_states state;
 

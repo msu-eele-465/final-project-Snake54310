@@ -93,13 +93,22 @@ int main(void)
                     writeMessage("File Created");
                 }
                 else if (dataint == 1) {
-                    writeMessage("File Saved");
+                    writeMessage("Size Updated");
                 }
                 else if (dataint == 2) {
                     writeMessage("File Updated");
                 }
                 else if (dataint == 3) {
                     writeMessage("Name Updated");
+                }
+                else if (dataint == 4) {
+                    writeMessage("File Deleted");
+                }
+                else if (dataint == 5) {
+                    writeMessage("Def Char Updated");
+                }
+                else if (dataint == 6) {
+                    writeMessage("File Closed");
                 }
             }
             else if (varint == 3) { // recieve header
@@ -108,15 +117,15 @@ int main(void)
                 if (dataint == 0) {
                     writeMessage("Choose File Name");
                 }
-                if (dataint == 1) {
+                else if (dataint == 1) {
                     writeMessage("Select File");
                 }
-                if (dataint == 2) {
-                    writeMessage("Select Def Char");
+                else if (dataint == 2) {
+                    writeMessage("Sel Default Char");
                 }
-                /*else if (dataint == 1) {
-                    writeMessage("File Saved");
-                }*/
+                else if (dataint == 3) {
+                    writeMessage("Select Size");
+                }
             }
             else if (varint == 4) { // send position
 
