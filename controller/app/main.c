@@ -376,12 +376,8 @@ void sendTerminal() {
     // sift through all files, pulling every one (besides deleted ones: file size 19) into currentFile (using loafFileFromMem()), and sending them over uart 
     // in the form: file name (16 bytes), fileSize(as a character representing the number of pages), file contents (correct number exactly)
     int i;
-    volatile int checkFileSize = fileSizes[0];
     for (i = 0; i < number_of_files; i++) {
-        __delay_cycles(300);
-        checkFileSize = fileSizes[i];
-        __delay_cycles(300);
-        if (checkFileSize != 19) { // do not send deleted files
+        if (fileSizes[i] != 19) { // do not send deleted files
             currentFileIndex = i;
             loadFileFromMem();
             volatile int n;
