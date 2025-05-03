@@ -52,14 +52,14 @@ volatile bool complete = false;
 
 char write_en = 0b00000110; // 6
 char write_status_register = 0b00000001; // 1
-char packetAR[] = {0b00000011, 0, 0, 0};
-char packetAW[] = {0b00000010, 0, 0};
+char packetAR[5] = {0b00000011, 0, 0, 0};
+char packetAW[4] = {0b00000010, 0, 0};
 
-volatile char Data_Sel[68] = {};
+volatile char Data_Sel[69] = {};
 volatile bool isRead = false;
 volatile int position = 0;
 volatile unsigned int to_send = 0;
-volatile int Rx_Data[64];
+volatile int Rx_Data[65];
 // --------  END SPI VARIABLES
 
 
@@ -390,10 +390,13 @@ void sendTerminal() {
         if(fileSizes[currentFileIndex] != 19) { // do not send deleted files
             currentFileIndex = i;
             loadFileFromMem();
-            int n;
-            int endPosition = fileSizes[currentFileIndex]*64;
+            volatile int n;
+            volatile int endPosition = fileSizes[currentFileIndex]*64;
             for(n = 1; n < 17; n++) { // leave a space
-                currentFile[endPosition + n] = fileNames[currentFileIndex][n - 1];
+                volatile int nameIndex = endPosition + n;
+                volatile char currentNameChar = fileNames[currentFileIndex][n - 1];
+                __delay_cycles(20);
+                currentFile[nameIndex] = currentNameChar;
             }
             currentFile[endPosition + 17] = fileSizes[currentFileIndex] + '0';
             currentFile[endPosition + 18] = 243;
@@ -628,7 +631,7 @@ void printFromFile(int filePosition) {
 void saveCurrentFile() { 
     TB0CCTL0 &= ~CCIE; // disable rgb timer inturrupt
     TB1CCTL0 &= ~CCIE;
-    UCA1CTLW0 |= UCSWRST;
+    UCA1CTLW0 &= ~UCSWRST;
     ADCIE &= ~ADCIE0;
     P2OUT |= BIT1; // LED to tell user program is writing/reading
     isRead = false;
@@ -648,9 +651,9 @@ void saveCurrentFile() {
         packetAW[1] = (((fileMemoryLocations[currentFileIndex][n]) & ~(0x00FF))/0xFF); // 8 MSB of memory address
         packetAW[2] = ((fileMemoryLocations[currentFileIndex][n]) & ~(0xFF00)); // 8 LSB of memory address
 
-        to_send = sizeof(packetAW) + 64; // always write full pages
+        to_send = 67; // always write full pages
         int i;
-        for (i = 0; i < sizeof(packetAW); i++) {
+        for (i = 0; i < 3; i++) {
             Data_Sel[i] = packetAW[i];
         }
         for (; i < to_send; i++) {
@@ -681,6 +684,7 @@ void displayCurrentFileName() {
 void loadFileFromMem() {
     TB0CCTL0 &= ~CCIE; // disable timer interrupt
     TB1CCTL0 &= ~CCIE; 
+    UCA1CTLW0 &= ~UCSWRST;
     P2OUT |= BIT1; // LED to tell user program is writing/reading
     UCB1IFG &= ~UCRXIFG;
     UCB1IE |= UCRXIE; // enable this interrupt when you want to read.
@@ -695,7 +699,7 @@ void loadFileFromMem() {
         packetAR[1] = (((fileMemoryLocations[currentFileIndex][n]) & ~(0x00FF))/0xFF); // 8 MSB of memory address
         packetAR[2] = ((fileMemoryLocations[currentFileIndex][n]) & ~(0xFF00)); // 8 LSB of memory address
 
-        to_send = sizeof(packetAR) + 64; // always read full pages
+        to_send = 68; // always read full pages
         int i;
         for (i = 0; i < to_send - 64; i++) {
             Data_Sel[i] = packetAR[i];
@@ -709,7 +713,7 @@ void loadFileFromMem() {
         while (UCB1STATW & UCBUSY);
         UCB1TXBUF = Data_Sel[position]; // send 64 byte file component
         __delay_cycles(50000);
-        for(i = 0; i < sizeof(Rx_Data); i++){
+        for(i = 0; i < 64; i++){
             currentFile[i + 64*n] = Rx_Data[i];
         }
     }
@@ -718,6 +722,7 @@ void loadFileFromMem() {
     UCB1IE |= UCTXIE;// enable this interrupt when you want to write.
     isRead = false;
     P2OUT &= ~BIT1;
+    UCA1CTLW0 &= ~UCSWRST;
     TB0CCTL0 |= CCIE; // re-enable timer inturrupt
     TB1CCTL0 |= CCIE;
 }
@@ -1136,11 +1141,11 @@ __interrupt void ISR_EUSCI_B1(void) {
     case 2:
         {   
             position++;
-            if (position >= sizeof(packetAR) && position < to_send) {
+            if (position >= 4 && position < to_send) {
                 UCB1TXBUF = Data_Sel[position];
-                Rx_Data[position - sizeof(packetAR)] = UCB1RXBUF & ~(0b10000000); // Store actual data, clear msb as temporary countermeasure to issue
+                Rx_Data[position - 4] = UCB1RXBUF & ~(0b10000000); // Store actual data, clear msb as temporary countermeasure to issue
             } 
-            else if (position < sizeof(packetAR) && position < to_send) {
+            else if (position < 4 && position < to_send) {
                 UCB1TXBUF = Data_Sel[position];
                 volatile char junk = UCB1RXBUF;     // Discard dummy RX
             }

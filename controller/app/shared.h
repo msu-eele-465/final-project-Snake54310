@@ -17,14 +17,14 @@ extern volatile unsigned int dataSend[2];
 extern volatile unsigned int ADC_Value;
 extern char write_en; // 6
 extern char write_status_register; // 1
-extern char packetAR[4];
-extern char packetAW[3];
+extern char packetAR[5];
+extern char packetAW[4];
 
-extern volatile char Data_Sel[68];
+extern volatile char Data_Sel[69];
 extern volatile bool isRead;
 extern volatile int position;
 extern volatile unsigned int to_send;
-extern volatile int Rx_Data[64];
+extern volatile int Rx_Data[65];
 
 extern volatile system_states state;
 
