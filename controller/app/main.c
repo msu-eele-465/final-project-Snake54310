@@ -62,22 +62,12 @@ volatile unsigned int to_send = 0;
 volatile int Rx_Data[65];
 // --------  END SPI VARIABLES
 
-
-
-//volatile unsigned int dataRead[3] = {0, 0};
 volatile unsigned int dataSend[2] = {69, 43};
 volatile unsigned int Data_Cnt = 0;
-// will also have record_next_temp. Send_next_temp only happens after record_next_temp 
-// initiates and completes recording temp.
-//volatile unsigned int limit_reached = 0;
 volatile unsigned int pwms = 0;
 
 volatile system_states state = LOCKED;
 
-//volatile bool is_matching = false;
-//volatile bool update_time = false;
-// variables associated with below methods:
-// file storage and navigation
 volatile char fileNames[33][17] = {}; // 32 files, 16 characters each
 volatile uint16_t fileMemoryLocations[33][17] = {}; // 32 files, up to 16 memory locations each
 volatile uint8_t fileSizes[33] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ,0}; 
@@ -386,8 +376,12 @@ void sendTerminal() {
     // sift through all files, pulling every one (besides deleted ones: file size 19) into currentFile (using loafFileFromMem()), and sending them over uart 
     // in the form: file name (16 bytes), fileSize(as a character representing the number of pages), file contents (correct number exactly)
     int i;
+    volatile int checkFileSize = fileSizes[0];
     for (i = 0; i < number_of_files; i++) {
-        if(fileSizes[currentFileIndex] != 19) { // do not send deleted files
+        __delay_cycles(300);
+        checkFileSize = fileSizes[i];
+        __delay_cycles(300);
+        if (checkFileSize != 19) { // do not send deleted files
             currentFileIndex = i;
             loadFileFromMem();
             volatile int n;
