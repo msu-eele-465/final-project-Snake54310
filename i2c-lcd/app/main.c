@@ -110,6 +110,12 @@ int main(void)
                 else if (dataint == 6) {
                     writeMessage("File Closed");
                 }
+                else if (dataint == 7) {
+                    writeMessage("Files Sent to T");
+                }
+                else if (dataint == 8) {
+                    writeMessage("Got File from T");
+                }
             }
             else if (varint == 3) { // recieve header
                 clearLCD();

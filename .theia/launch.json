@@ -54,6 +54,15 @@
                 "name": "UART_Setup.c",
                 "resourceId": "/UART_Setup.c"
             }
+        },
+        {
+            "name": "UART_Setup_noconflict.c",
+            "type": "ccs-debug",
+            "request": "launch",
+            "projectInfo": {
+                "name": "UART_Setup_noconflict.c",
+                "resourceId": "/UART_Setup_noconflict.c"
+            }
         }
     ]
 }

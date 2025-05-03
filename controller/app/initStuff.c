@@ -84,7 +84,7 @@ void initUART() {
         P4SEL1 &= ~BIT2;  // configure P4.2 to use UCA1RXD with:
         P4SEL0 |= BIT2;     // P4SEL1(2):P4SEL0(2) = 01
 
-    PM5CTL0 &= ~LOCKLPM5;                   // Disable the GPIO power-on default high-impedance mode
+    //PM5CTL0 &= ~LOCKLPM5;                   // Disable the GPIO power-on default high-impedance mode
                                             // to activate previously configured port settings
     //UCA1IE |= UCTXIE; 
     UCA1CTLW0 &= ~UCSWRST;    // Take eUSCI_A1 out of SW reset with UCSWRST=0

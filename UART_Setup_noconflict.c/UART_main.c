@@ -78,8 +78,7 @@ __interrupt void ISR_EUSCI_A1(void)
         }
         else { // if string still has unsent characters
             position ++;
-            int j;
-            for(j = 0; j < 1000; j++);
+            __delay_cycles(200);
             UCA1TXBUF = out_string[position]; // send nth character of string
         }
     }

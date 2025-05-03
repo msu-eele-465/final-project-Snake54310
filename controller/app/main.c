@@ -19,6 +19,18 @@ volatile unsigned int red_counter = 0;
 volatile unsigned int green_counter = 0;
 volatile unsigned int blue_counter = 0;
 
+// ----------- UART VARIABLES ----------
+//char out_string_first[] = "\n\r Motor advanced 1 step \r\n";
+//char out_string_last[] = "\n\r Motor reversed 1 rotation. \r\n";
+char *out_string;
+// int bit_check;
+volatile int positionU;
+volatile int positionUr = 0;
+// char Received[64] = ""; replace with currentFile, size 1043 (1024 bytes for file, one byte for safety, 
+//16 bytes for file name, 1 byte for file size, one byte for safety), 1 for EOFR (end of file read)
+// char new_string[70]; // also replace this with currentFile. it is crucial to limit size of on-board datastructures
+// ------------- END UART VARIABLES ----------
+
 // ----------- ADC VARIABLES ------
 
 volatile unsigned int ADC_Value = 0;
@@ -72,7 +84,7 @@ volatile uint8_t fileSizes[33] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 volatile uint16_t nextFreeMemory = 0; // this is the next free memory location to which we allocate memory. Starts at 0.
 volatile uint8_t currentFileIndex = 0;
 volatile uint8_t nextFileIndex = 0;
-volatile char currentFile[1025] = {};
+volatile char currentFile[1045] = {};
 volatile char currentPosition = 0;
 volatile char currentChar = 0;
 volatile char defaultChar = ' '; // will be ' ' after debugging
@@ -272,7 +284,7 @@ void allocateFileMemory() {
         }
         if(CCW8) {
             addedSize = addedSize - 1;
-            if((addedSize < prevSize) || (addedSize > prevSize)) {
+            if(addedSize > maxAdd) {
                 addedSize = maxAdd;
             }
             CCW8 = false;
@@ -368,15 +380,75 @@ void deleteFile() {
     return;
 }
 void sendTerminal() {
+    TB0CCTL0 &= ~CCIE; // disable rgb timer inturrupt
+    TB1CCTL0 &= ~CCIE;
+    ADCIE &= ~ADCIE0;
     // sift through all files, pulling every one (besides deleted ones: file size 19) into currentFile (using loafFileFromMem()), and sending them over uart 
     // in the form: file name (16 bytes), fileSize(as a character representing the number of pages), file contents (correct number exactly)
+    int i;
+    for (i = 0; i < number_of_files; i++) {
+        if(fileSizes[currentFileIndex] != 19) { // do not send deleted files
+            currentFileIndex = i;
+            loadFileFromMem();
+            int n;
+            int endPosition = fileSizes[currentFileIndex]*64;
+            for(n = 1; n < 17; n++) { // leave a space
+                currentFile[endPosition + n] = fileNames[currentFileIndex][n - 1];
+            }
+            currentFile[endPosition + 17] = fileSizes[currentFileIndex] + '0';
+            currentFile[endPosition + 18] = 243;
+            out_string = currentFile; // set string to reverse string
+            positionU = 0;
+            UCA1IE |= UCTXCPTIE;  // enables IQR
+            UCA1IFG &= ~UCTXCPTIFG; // clears flag
+            UCA1TXBUF = out_string[positionU]; // prints first character, triggering IQR
+            __delay_cycles(300000); // .0002 * (1044 + 6) = .21 < .3
+        }
+    }
+    TB0CCTL0 |= CCIE; // enable rgb timer inturrupt
+    TB1CCTL0 |= CCIE;
+    ADCIE |= ADCIE0;
+    sendMessage(7);
+    return;
 }
 void recieveTerminal() {
-    // start listening for one file to move to memory. Collect file as first 16 bytes being name, 17th char being size, and the remainder 
-    // being contents (amount based upon recieved size). Determine memory addresses sequentially (as we have been), then transfer file to memory
-    // at the appropriate addesses (done correctly, you can call 'write current file')
-    // wait for user input. '*' means all files have been sent, '1' means they are sending another from the terminal. 
-    // repeat until * is recieved. 
+    TB0CCTL0 &= ~CCIE; // disable rgb timer inturrupt
+    TB1CCTL0 &= ~CCIE;
+    ADCIE &= ~ADCIE0;
+
+    positionUr = 0;
+    positionU = -1;
+    UCA1IE |= UCRXIE;
+    while(UCA1IE & UCRXIE){} 
+
+    int sizeRecieved = currentFile[positionUr - 2] - '0';
+    if(sizeRecieved > 16) {
+        sizeRecieved = 2; // stopgap to prevent issues with improper recieves
+    }
+    fileSizes[nextFileIndex] = sizeRecieved; // format new file location pointers
+
+    int i;
+    for (i = 0; i < sizeRecieved; i++) {
+        fileMemoryLocations[nextFileIndex][i] = nextFreeMemory;
+        nextFreeMemory = nextFreeMemory + 64;
+    }
+    currentFileIndex = nextFileIndex;
+    nextFileIndex += 1;
+    number_of_files += 1;
+
+    int rawFileSize = 64 * sizeRecieved;
+
+    for (i = 0; i < 16; i++) { // take into account space *** ACTUALLY SPACE DISAPPEARS IN TERMINAL RECIEVE *** THIS IS NOW CORRECT ***
+        fileNames[currentFileIndex][i] = currentFile[rawFileSize + i]; // save file name
+    }
+
+    saveCurrentFile();
+
+    TB0CCTL0 |= CCIE; // enable rgb timer inturrupt
+    TB1CCTL0 |= CCIE;
+    ADCIE |= ADCIE0;
+    sendMessage(8);
+    return; 
 }
 void changeEditChar() {
     sendHeader(2); // "select default character" message
@@ -521,6 +593,21 @@ char charCatSel(char Choice) {
             break;
         case '#':
             currentChar = ' ';
+            break;
+        case '3':
+            currentChar = 'N';
+            break;
+        case '6':
+            currentChar = 'n';
+            break;
+        case '2':
+            currentChar = 'Z';
+            break;
+        case '5':
+            currentChar = 'z';
+            break;
+        case '1':
+            currentChar = '(';
             break;
         default: 
             break;
@@ -1077,14 +1164,14 @@ __interrupt void ISR_EUSCI_B1(void) {
 }
 //----------- END SPI ISR -----------------
 //-- UART ISR -------------------------------
-/*
 #pragma vector=EUSCI_A1_VECTOR
 __interrupt void ISR_EUSCI_A1(void)
 {   //if ((UCTXCPTIFG & UCA1IFG) == 0) { // does not work because UCTXCPTIFG is always has bit 3 set here
-    if (position == -1) { // if position has not been set to zero, or is otherwise positive
-        Received[positionr] = UCA1RXBUF;
-        positionr ++;
-        if(positionr > 63) {
+    if (positionU == -1) { // if position has not been set to zero, or is otherwise positive. Might have something to do with notepad or copy/paste, too.
+        currentFile[positionUr] = UCA1RXBUF;
+        positionUr ++;
+        if(currentFile[positionUr - 1] == 195 || positionUr == 1044 || currentFile[positionUr - 1] == 179 || currentFile[positionUr - 1] == 243) { // make sure we don't go over max array index, also, for some reason the 
+        // terminal thinks it should send 'ó' as 195 179, or something. Whatever--I'll just watch for everything.
             UCA1IE &= ~UCTXCPTIE; // clear flag
             UCA1IE &= ~UCRXIE; // disable this interrupt
         }
@@ -1093,17 +1180,16 @@ __interrupt void ISR_EUSCI_A1(void)
         }
     }
     else { // if position has been set to 0 or is currently in use
-        if (position == strlen(out_string)){ // if position now equals the string length
+        if (positionU == (fileSizes[currentFileIndex]*64 + 18)){ // if position now equals the string length
             UCA1IE &= ~UCTXCPTIE; // clear flag
-            position = -1; // set position back to default of -1
+            positionU = -1; // set position back to default of -1
         }
         else { // if string still has unsent characters
-            position ++;
-            int j;
-            for(j = 0; j < 1000; j++);
-            UCA1TXBUF = out_string[position]; // send nth character of string
+            positionU ++;
+            __delay_cycles(200); // 1,000,000/60 * (8 + 2) < .0002
+            UCA1TXBUF = out_string[positionU]; // send nth character of string
         }
     }
     UCA1IFG &= ~UCTXCPTIFG;
-}*/
+}
 //-- END UART ISR -------------------------------
